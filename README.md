@@ -68,7 +68,7 @@ are not resolved yet at that point.
 - Addresses are normalized on both sides before they are compared: IPv6 is
   compressed and lower cased, IPv4-mapped IPv6 addresses (`::ffff:192.0.2.1`, as
   reported by dual stack sockets with `ipv6only=off`) count as the IPv4 address.
-- The client address comes from `GeneralUtility::getIndpEnv('REMOTE_ADDR')`, so
+- The client address is determined like the core does it (`NormalizedParams`), so
   `$GLOBALS['TYPO3_CONF_VARS']['SYS']['reverseProxyIP']` is respected. Behind a
   proxy or CDN, configure it, or the proxy's address is checked instead of the
   visitor's. Never set it to `*` without a proxy: clients could then fake their
@@ -99,10 +99,10 @@ reload to your update routine in that case.
 ./Build/dev-setup.sh
 ```
 
-Bootstraps a full TYPO3 13.4 dev instance (DDEV required, PHP 8.3) with a seeded
+Bootstraps a full TYPO3 14.3 dev instance (DDEV required, PHP 8.4) with a seeded
 page and a dev list that blocks the loopback addresses only, so requests from
 inside the web container get the notice page while your browser gets the page.
-Frontend: https://typo3-tor-blocker.ddev.site/ — Backend: `/typo3` (`admin` / `TorBlocker13!`)
+Frontend: https://typo3-tor-blocker.ddev.site/ — Backend: `/typo3` (`admin` / `TorBlocker14!`)
 Run tests with `ddev composer test`, code style with `ddev composer cs`.
 
 The lowest supported combination, TYPO3 10.4 on PHP 7.4, runs in Docker:
@@ -117,9 +117,9 @@ Activate the pre-commit hook once per clone: `git config core.hooksPath .githook
 
 ## Compatibility
 
-Compatible with TYPO3 10.4, 12.4 and 13.4, PHP 7.4 – 8.3. TYPO3 11.5 is not
-tested. Covered by PHPUnit tests against TYPO3 10.4 (PHP 7.4), 12.4 (PHP 8.2)
-and 13.4 (PHP 8.3). On TYPO3 13 the notice page is rendered through the
-`ViewFactoryInterface`, on 10 and 12 through `StandaloneView`.
+Compatible with TYPO3 10.4, 12.4, 13.4 and 14.3, PHP 7.4 – 8.5. TYPO3 11.5 is
+not tested. Covered by PHPUnit tests against TYPO3 10.4 (PHP 7.4), 12.4 (PHP 8.2),
+13.4 (PHP 8.3) and 14.3 (PHP 8.3 – 8.5). From TYPO3 13 on the notice page is
+rendered through the `ViewFactoryInterface`, on 10 and 12 through `StandaloneView`.
 
 Works for me, may work for you.

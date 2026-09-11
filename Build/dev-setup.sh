@@ -3,18 +3,18 @@
 # Usage from a fresh clone: ./Build/dev-setup.sh
 # Re-running is safe: existing installation, site and content are left untouched.
 #
-# The instance runs TYPO3 13.4 on PHP 8.3, the newest supported combination, because
+# The instance runs TYPO3 14.3 on PHP 8.4, the newest supported combination, because
 # TYPO3 10 has no "typo3 setup" command. The lowest supported combination (TYPO3 10.4,
 # PHP 7.4) is covered by the unit tests in CI and by the Docker one-liners in the README.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BACKEND_USER='admin'
-BACKEND_PASSWORD='TorBlocker13!'
+BACKEND_PASSWORD='TorBlocker14!'
 SITE_URL='https://typo3-tor-blocker.ddev.site'
 
 if [ ! -f .ddev/config.yaml ]; then
-    ddev config --project-type=typo3 --docroot=public --create-docroot --php-version=8.3
+    ddev config --project-type=typo3 --docroot=public --create-docroot --php-version=8.4
 fi
 ddev start
 
