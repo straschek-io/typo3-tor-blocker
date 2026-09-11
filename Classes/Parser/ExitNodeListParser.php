@@ -3,11 +3,21 @@
 declare(strict_types=1);
 namespace StraschekIo\TorBlocker\Parser;
 
+use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
+
 class ExitNodeListParser
 {
+    private IpAddressNormalizer $ipAddressNormalizer;
+
+    public function __construct(IpAddressNormalizer $ipAddressNormalizer)
+    {
+        $this->ipAddressNormalizer = $ipAddressNormalizer;
+    }
+
     /**
      * Extracts the valid IP addresses from a plain text list with one address per line.
-     * Empty lines, comments and anything that is not an IP address are skipped.
+     * Empty lines, comments and anything that is not an IP address are skipped, the
+     * addresses are normalized, so different spellings of one address count once.
      *
      * @param string $list
      * @return string[]
@@ -20,10 +30,11 @@ class ExitNodeListParser
             if ($line === '' || strpos($line, '#') === 0) {
                 continue;
             }
-            if (filter_var($line, FILTER_VALIDATE_IP) === false) {
+            $address = $this->ipAddressNormalizer->normalize($line);
+            if ($address === '') {
                 continue;
             }
-            $addresses[$line] = true;
+            $addresses[$address] = true;
         }
 
         return array_map('strval', array_keys($addresses));

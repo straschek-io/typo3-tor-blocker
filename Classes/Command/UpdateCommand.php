@@ -73,7 +73,13 @@ class UpdateCommand extends Command
             return 1;
         }
 
-        $this->exitNodeRepository->replace($addresses);
+        try {
+            $this->exitNodeRepository->replace($addresses);
+        } catch (\RuntimeException $exception) {
+            $io->error(sprintf('Could not store the list: %s Keeping the current list.', $exception->getMessage()));
+
+            return 1;
+        }
         $io->success(sprintf('Stored %d Tor exit node addresses in %s.', count($addresses), $this->exitNodeRepository->getFilePath()));
 
         return 0;

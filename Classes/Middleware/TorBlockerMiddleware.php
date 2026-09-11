@@ -7,32 +7,44 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
 use StraschekIo\TorBlocker\Rendering\BlockedPageRenderer;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
-class TorBlockerMiddleware implements MiddlewareInterface
+class TorBlockerMiddleware implements MiddlewareInterface, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /**
-     * Languages with a translation of the blocked page, everything else gets the default
+     * Languages with a translation of the blocked page, mapped to the key of the label file.
+     * English is the source language of the labels, so it maps to "default".
      */
-    private const SUPPORTED_LANGUAGE_KEYS = ['de'];
+    private const LANGUAGE_KEYS = ['en' => 'default', 'de' => 'de'];
 
     private BlockedPageRenderer $blockedPageRenderer;
 
     private ExitNodeRepository $exitNodeRepository;
 
-    public function __construct(ExitNodeRepository $exitNodeRepository, BlockedPageRenderer $blockedPageRenderer)
-    {
+    private IpAddressNormalizer $ipAddressNormalizer;
+
+    public function __construct(
+        ExitNodeRepository $exitNodeRepository,
+        BlockedPageRenderer $blockedPageRenderer,
+        IpAddressNormalizer $ipAddressNormalizer
+    ) {
         $this->exitNodeRepository = $exitNodeRepository;
         $this->blockedPageRenderer = $blockedPageRenderer;
+        $this->ipAddressNormalizer = $ipAddressNormalizer;
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $remoteAddress = $this->resolveRemoteAddress($request);
+        $remoteAddress = $this->ipAddressNormalizer->normalize($this->resolveRemoteAddress($request));
         if ($remoteAddress === '' || !$this->exitNodeRepository->contains($remoteAddress)) {
             return $handler->handle($request);
         }
@@ -41,6 +53,11 @@ class TorBlockerMiddleware implements MiddlewareInterface
             $body = $this->blockedPageRenderer->render($this->resolveLanguageKey($request));
         } catch (\Throwable $exception) {
             // Blocking must not depend on the template being renderable
+            if ($this->logger !== null) {
+                $this->logger->error('Could not render the blocked page, answering with an empty body.', [
+                    'exception' => $exception,
+                ]);
+            }
             $body = '';
         }
 
@@ -49,10 +66,46 @@ class TorBlockerMiddleware implements MiddlewareInterface
 
     private function resolveLanguageKey(ServerRequestInterface $request): string
     {
-        $acceptLanguage = strtolower($request->getHeaderLine('Accept-Language'));
-        $preferredLanguage = substr((string)strtok($acceptLanguage, ',;-'), 0, 2);
+        foreach ($this->parseAcceptLanguage($request->getHeaderLine('Accept-Language')) as $language) {
+            if (isset(self::LANGUAGE_KEYS[$language])) {
+                return self::LANGUAGE_KEYS[$language];
+            }
+        }
 
-        return in_array($preferredLanguage, self::SUPPORTED_LANGUAGE_KEYS, true) ? $preferredLanguage : 'default';
+        return 'default';
+    }
+
+    /**
+     * Primary language subtags of an Accept-Language header, best quality first.
+     *
+     * @param string $header
+     * @return string[]
+     */
+    private function parseAcceptLanguage(string $header): array
+    {
+        $languages = [];
+        $position = 0;
+        foreach (explode(',', $header) as $entry) {
+            $parameters = array_map('trim', explode(';', $entry));
+            $tag = strtolower((string)array_shift($parameters));
+            $quality = 1.0;
+            foreach ($parameters as $parameter) {
+                if (strpos($parameter, 'q=') === 0) {
+                    $quality = (float)substr($parameter, 2);
+                }
+            }
+            $primaryLanguage = explode('-', str_replace('_', '-', $tag))[0];
+            if ($quality <= 0 || !preg_match('/^[a-z]{2,8}$/', $primaryLanguage)) {
+                continue;
+            }
+            $languages[] = ['language' => $primaryLanguage, 'quality' => $quality, 'position' => $position++];
+        }
+        // usort() is not stable before PHP 8, the position keeps the header order for equal qualities
+        usort($languages, static function (array $first, array $second): int {
+            return $second['quality'] <=> $first['quality'] ?: $first['position'] <=> $second['position'];
+        });
+
+        return array_column($languages, 'language');
     }
 
     private function resolveRemoteAddress(ServerRequestInterface $request): string

@@ -6,6 +6,7 @@ namespace StraschekIo\TorBlocker\Tests\Unit\Command;
 use PHPUnit\Framework\TestCase;
 use StraschekIo\TorBlocker\Command\UpdateCommand;
 use StraschekIo\TorBlocker\Configuration\ExtensionSettings;
+use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
 use StraschekIo\TorBlocker\Parser\ExitNodeListParser;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -31,6 +32,8 @@ final class UpdateCommandTest extends TestCase
         }
         if (is_dir($this->storageDirectory)) {
             rmdir($this->storageDirectory);
+        } elseif (is_file($this->storageDirectory)) {
+            unlink($this->storageDirectory);
         }
     }
 
@@ -44,6 +47,7 @@ final class UpdateCommandTest extends TestCase
         self::assertSame(0, $exitCode);
         self::assertTrue($repository->contains('192.0.2.1'));
         self::assertTrue($repository->contains('198.51.100.23'));
+        self::assertStringContainsString('Stored 2 Tor exit node addresses', $commandTester->getDisplay());
     }
 
     public function testKeepsTheCurrentListWhenTooFewAddressesArrive(): void
@@ -83,6 +87,18 @@ final class UpdateCommandTest extends TestCase
         self::assertTrue((new ExitNodeRepository($this->storageDirectory))->contains('203.0.113.7'));
     }
 
+    public function testReportsAFailureWhenTheListCannotBeStored(): void
+    {
+        // A file in the way of the storage directory
+        file_put_contents($this->storageDirectory, '');
+        $commandTester = $this->createCommandTester($this->createRequestFactory("192.0.2.1\n198.51.100.23\n"));
+
+        $exitCode = $commandTester->execute([]);
+
+        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('Could not store the list', $commandTester->getDisplay());
+    }
+
     private function createCommandTester(RequestFactory $requestFactory): CommandTester
     {
         $extensionSettings = $this->createMock(ExtensionSettings::class);
@@ -91,7 +107,7 @@ final class UpdateCommandTest extends TestCase
 
         $command = new UpdateCommand(
             $requestFactory,
-            new ExitNodeListParser(),
+            new ExitNodeListParser(new IpAddressNormalizer()),
             new ExitNodeRepository($this->storageDirectory),
             $extensionSettings
         );

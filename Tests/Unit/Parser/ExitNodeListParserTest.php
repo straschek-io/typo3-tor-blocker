@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace StraschekIo\TorBlocker\Tests\Unit\Parser;
 
 use PHPUnit\Framework\TestCase;
+use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
 use StraschekIo\TorBlocker\Parser\ExitNodeListParser;
 
 /**
@@ -15,7 +16,7 @@ final class ExitNodeListParserTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->parser = new ExitNodeListParser();
+        $this->parser = new ExitNodeListParser(new IpAddressNormalizer());
     }
 
     public function testReturnsAddressesInOrder(): void
@@ -41,6 +42,13 @@ final class ExitNodeListParserTest extends TestCase
     public function testAcceptsIpv6AndWindowsLineEndings(): void
     {
         self::assertSame(['192.0.2.1', '2001:db8::1'], $this->parser->parse("192.0.2.1\r\n2001:db8::1\r\n"));
+    }
+
+    public function testNormalizesAddressesAndRemovesDuplicateSpellings(): void
+    {
+        $list = "2001:DB8:0000:0000:0000:0000:0000:0001\n2001:db8::1\n::ffff:198.51.100.7\n198.51.100.7\n";
+
+        self::assertSame(['2001:db8::1', '198.51.100.7'], $this->parser->parse($list));
     }
 
     public function testReturnsNothingForAnHtmlErrorPage(): void
