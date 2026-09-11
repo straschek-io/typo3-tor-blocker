@@ -41,6 +41,10 @@ jobs:
         with:
           php-version: '7.4'
           coverage: none
+      # Pin the lowest supported core, so the code style check runs on PHP 7.4; without
+      # the pin Composer only offers 13.4, because it blocks the insecure 10.4 and 12.4
+      - run: composer require "typo3/cms-core:^10.4" "typo3/cms-fluid:^10.4" --no-update
+      - run: composer config audit.block-insecure false || true
       - run: composer config platform.php 7.4.33
       - run: composer install --no-progress --no-interaction
       - run: vendor/bin/php-cs-fixer fix --dry-run --diff
