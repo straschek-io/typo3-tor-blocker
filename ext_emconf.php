@@ -7,10 +7,12 @@ $EM_CONF['tor_blocker'] = [
     'author' => 'Michael Straschek',
     'author_email' => 'hallo@straschek.io',
     'state' => 'stable',
-    'version' => '1.0.0',
+    'version' => '1.0.1',
     'constraints' => [
         'depends' => [
             'typo3' => '10.4.0-13.4.99',
+            'fluid' => '10.4.0-13.4.99',
+            'php' => '7.4.0-8.3.99',
         ],
     ],
     'autoload' => [
