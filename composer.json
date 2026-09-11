@@ -1,0 +1,52 @@
+{
+  "name": "straschek-io/typo3-tor-blocker",
+  "description": "Blocks TYPO3 frontend requests from Tor exit nodes",
+  "license": "GPL-2.0-or-later",
+  "support": {
+    "email": "hallo@straschek.io",
+    "source": "https://github.com/straschek-io/typo3-tor-blocker",
+    "issues": "https://github.com/straschek-io/typo3-tor-blocker/issues"
+  },
+  "authors": [
+    {
+      "name": "Michael Straschek",
+      "email": "hallo@straschek.io"
+    }
+  ],
+  "type": "typo3-cms-extension",
+  "require": {
+    "php": "^7.4 || ^8.0",
+    "typo3/cms-core": "^10.4 || ^12.4 || ^13.4",
+    "typo3/cms-fluid": "^10.4 || ^12.4 || ^13.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "StraschekIo\\TorBlocker\\": "Classes/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "StraschekIo\\TorBlocker\\Tests\\": "Tests/"
+    }
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.4",
+    "phpunit/phpunit": "^9.6"
+  },
+  "scripts": {
+    "cs": "php-cs-fixer fix --dry-run --diff",
+    "cs:fix": "php-cs-fixer fix",
+    "test": "phpunit"
+  },
+  "config": {
+    "allow-plugins": {
+      "typo3/class-alias-loader": true,
+      "typo3/cms-composer-installers": true
+    }
+  },
+  "extra": {
+    "typo3/cms": {
+      "extension-key": "tor_blocker"
+    }
+  }
+}

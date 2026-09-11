@@ -1,0 +1,19 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  StraschekIo\TorBlocker\:
+    resource: '../Classes/*'
+
+  # TYPO3 10 only takes middlewares from the container when they are public
+  StraschekIo\TorBlocker\Middleware\TorBlockerMiddleware:
+    public: true
+
+  StraschekIo\TorBlocker\Command\UpdateCommand:
+    tags:
+      - name: 'console.command'
+        command: 'torblocker:update'
+        description: 'Downloads the Tor exit node list used to block frontend requests'
+        schedulable: true

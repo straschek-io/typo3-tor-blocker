@@ -1,0 +1,8 @@
+# cat=basic;type=string;label=URL of the Tor exit node list (one IP address per line)
+listUrl = https://check.torproject.org/torbulkexitlist
+
+# cat=basic;type=int+;label=Minimum number of addresses a downloaded list must contain to replace the stored one
+minimumEntries = 500
+
+# cat=basic;type=string;label=Fluid template of the page shown to blocked visitors
+templatePath = EXT:tor_blocker/Resources/Private/Templates/Blocked.html

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+    <file source-language="en" target-language="de" datatype="plaintext" original="EXT:tor_blocker/Resources/Private/Language/locallang.xlf" product-name="tor_blocker">
+        <header/>
+        <body>
+            <trans-unit id="title" resname="title">
+                <source>Access not possible</source>
+                <target>Zugriff nicht möglich</target>
+            </trans-unit>
+            <trans-unit id="message" resname="message">
+                <source>Access via the Tor network is not possible on this website. Please get in touch with us by other means.</source>
+                <target>Zugriffe über das Tor-Netzwerk sind auf dieser Website nicht möglich. Bitte nehmen Sie auf anderem Weg Kontakt mit uns auf.</target>
+            </trans-unit>
+        </body>
+    </file>
+</xliff>
