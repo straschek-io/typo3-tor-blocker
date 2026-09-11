@@ -12,10 +12,11 @@ use StraschekIo\TorBlocker\Middleware\TorBlockerMiddleware;
 use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
 use StraschekIo\TorBlocker\Rendering\BlockedPageRenderer;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
+use TYPO3\CMS\Core\Core\ApplicationContext;
+use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Http\Response;
 use TYPO3\CMS\Core\Http\ServerRequest;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * @covers \StraschekIo\TorBlocker\Middleware\TorBlockerMiddleware
@@ -24,8 +25,6 @@ final class TorBlockerMiddlewareTest extends TestCase
 {
     private const EXIT_NODE_ADDRESS = '203.0.113.7';
 
-    private array $serverBackup;
-
     /**
      * @var mixed
      */
@@ -33,52 +32,57 @@ final class TorBlockerMiddlewareTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->serverBackup = $_SERVER;
         $this->typo3ConfVarsBackup = $GLOBALS['TYPO3_CONF_VARS'] ?? null;
         $GLOBALS['TYPO3_CONF_VARS']['SYS']['reverseProxyIP'] = '';
-        // getIndpEnv() caches the client address per process
-        GeneralUtility::flushInternalRuntimeCaches();
+        // NormalizedParams::createFromRequest() reads the script and public path from the environment
+        $projectPath = sys_get_temp_dir() . '/tor_blocker_test_project';
+        Environment::initialize(
+            new ApplicationContext('Testing'),
+            true,
+            true,
+            $projectPath,
+            $projectPath . '/public',
+            $projectPath . '/var',
+            $projectPath . '/config',
+            $projectPath . '/public/index.php',
+            'UNIX'
+        );
     }
 
     protected function tearDown(): void
     {
-        $_SERVER = $this->serverBackup;
         $GLOBALS['TYPO3_CONF_VARS'] = $this->typo3ConfVarsBackup;
-        GeneralUtility::flushInternalRuntimeCaches();
     }
 
     public function testPassesTheRequestOnWhenTheAddressIsNotListed(): void
     {
-        $_SERVER['REMOTE_ADDR'] = '192.0.2.1';
         $response = new Response();
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->expects(self::never())->method('render');
         $middleware = $this->createMiddleware($renderer);
 
-        $result = $middleware->process(new ServerRequest('https://example.org/'), $this->createHandler($response));
+        $result = $middleware->process($this->createRequest('192.0.2.1'), $this->createHandler($response));
 
         self::assertSame($response, $result);
     }
 
     public function testPassesTheRequestOnWithoutAClientAddress(): void
     {
-        unset($_SERVER['REMOTE_ADDR']);
         $response = new Response();
         $middleware = $this->createMiddleware($this->createMock(BlockedPageRenderer::class));
 
-        $result = $middleware->process(new ServerRequest('https://example.org/'), $this->createHandler($response));
+        $result = $middleware->process($this->createRequest(null), $this->createHandler($response));
 
         self::assertSame($response, $result);
     }
 
     public function testAnswersListedAddressesWithTheBlockedPage(): void
     {
-        $_SERVER['REMOTE_ADDR'] = self::EXIT_NODE_ADDRESS;
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->method('render')->willReturn('<p>blocked</p>');
         $middleware = $this->createMiddleware($renderer);
 
-        $result = $middleware->process(new ServerRequest('https://example.org/'), $this->createFailingHandler());
+        $result = $middleware->process($this->createRequest(self::EXIT_NODE_ADDRESS), $this->createFailingHandler());
 
         self::assertSame(403, $result->getStatusCode());
         self::assertSame('<p>blocked</p>', (string)$result->getBody());
@@ -87,25 +91,48 @@ final class TorBlockerMiddlewareTest extends TestCase
 
     public function testBlocksListedAddressesReportedAsIpv4MappedIpv6(): void
     {
-        $_SERVER['REMOTE_ADDR'] = '::ffff:' . self::EXIT_NODE_ADDRESS;
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->method('render')->willReturn('');
         $middleware = $this->createMiddleware($renderer);
 
-        $result = $middleware->process(new ServerRequest('https://example.org/'), $this->createFailingHandler());
+        $result = $middleware->process($this->createRequest('::ffff:' . self::EXIT_NODE_ADDRESS), $this->createFailingHandler());
 
         self::assertSame(403, $result->getStatusCode());
     }
 
+    public function testRespectsTheReverseProxyConfiguration(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['reverseProxyIP'] = '192.0.2.1';
+        $GLOBALS['TYPO3_CONF_VARS']['SYS']['reverseProxyHeaderMultiValue'] = 'first';
+        $renderer = $this->createMock(BlockedPageRenderer::class);
+        $renderer->method('render')->willReturn('');
+        $middleware = $this->createMiddleware($renderer);
+        $request = $this->createRequest('192.0.2.1', ['HTTP_X_FORWARDED_FOR' => self::EXIT_NODE_ADDRESS]);
+
+        $result = $middleware->process($request, $this->createFailingHandler());
+
+        self::assertSame(403, $result->getStatusCode());
+    }
+
+    public function testIgnoresForwardedHeadersWithoutAReverseProxy(): void
+    {
+        $response = new Response();
+        $middleware = $this->createMiddleware($this->createMock(BlockedPageRenderer::class));
+        $request = $this->createRequest('192.0.2.1', ['HTTP_X_FORWARDED_FOR' => self::EXIT_NODE_ADDRESS]);
+
+        $result = $middleware->process($request, $this->createHandler($response));
+
+        self::assertSame($response, $result);
+    }
+
     public function testUsesTheNormalizedParamsAttributeWhenPresent(): void
     {
-        $_SERVER['REMOTE_ADDR'] = '192.0.2.1';
         $normalizedParams = $this->createMock(NormalizedParams::class);
         $normalizedParams->method('getRemoteAddress')->willReturn(self::EXIT_NODE_ADDRESS);
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->method('render')->willReturn('');
         $middleware = $this->createMiddleware($renderer);
-        $request = (new ServerRequest('https://example.org/'))->withAttribute('normalizedParams', $normalizedParams);
+        $request = $this->createRequest('192.0.2.1')->withAttribute('normalizedParams', $normalizedParams);
 
         $result = $middleware->process($request, $this->createFailingHandler());
 
@@ -117,11 +144,10 @@ final class TorBlockerMiddlewareTest extends TestCase
      */
     public function testChoosesTheLanguageFromTheAcceptLanguageHeader(string $header, string $expectedLanguageKey): void
     {
-        $_SERVER['REMOTE_ADDR'] = self::EXIT_NODE_ADDRESS;
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->expects(self::once())->method('render')->with($expectedLanguageKey)->willReturn('');
         $middleware = $this->createMiddleware($renderer);
-        $request = new ServerRequest('https://example.org/');
+        $request = $this->createRequest(self::EXIT_NODE_ADDRESS);
         if ($header !== '') {
             $request = $request->withHeader('Accept-Language', $header);
         }
@@ -150,7 +176,6 @@ final class TorBlockerMiddlewareTest extends TestCase
 
     public function testStillBlocksWhenTheBlockedPageCannotBeRendered(): void
     {
-        $_SERVER['REMOTE_ADDR'] = self::EXIT_NODE_ADDRESS;
         $renderer = $this->createMock(BlockedPageRenderer::class);
         $renderer->method('render')->willThrowException(new \RuntimeException('Template missing'));
         $logger = $this->createMock(LoggerInterface::class);
@@ -158,10 +183,23 @@ final class TorBlockerMiddlewareTest extends TestCase
         $middleware = $this->createMiddleware($renderer);
         $middleware->setLogger($logger);
 
-        $result = $middleware->process(new ServerRequest('https://example.org/'), $this->createFailingHandler());
+        $result = $middleware->process($this->createRequest(self::EXIT_NODE_ADDRESS), $this->createFailingHandler());
 
         self::assertSame(403, $result->getStatusCode());
         self::assertSame('', (string)$result->getBody());
+    }
+
+    /**
+     * @param array<string, string> $additionalServerParams
+     */
+    private function createRequest(?string $remoteAddress, array $additionalServerParams = []): ServerRequest
+    {
+        $serverParams = ['HTTP_HOST' => 'example.org', 'REQUEST_URI' => '/', 'SCRIPT_NAME' => '/index.php'];
+        if ($remoteAddress !== null) {
+            $serverParams['REMOTE_ADDR'] = $remoteAddress;
+        }
+
+        return new ServerRequest('https://example.org/', 'GET', 'php://input', [], $serverParams + $additionalServerParams);
     }
 
     private function createMiddleware(BlockedPageRenderer $renderer): TorBlockerMiddleware

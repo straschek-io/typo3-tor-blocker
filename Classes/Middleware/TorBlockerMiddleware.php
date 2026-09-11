@@ -14,7 +14,6 @@ use StraschekIo\TorBlocker\Rendering\BlockedPageRenderer;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\NormalizedParams;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 class TorBlockerMiddleware implements MiddlewareInterface, LoggerAwareInterface
 {
@@ -108,15 +107,18 @@ class TorBlockerMiddleware implements MiddlewareInterface, LoggerAwareInterface
         return array_column($languages, 'language');
     }
 
+    /**
+     * The client address as the core determines it, including the reverse proxy configuration.
+     * This middleware runs before the core sets the normalizedParams attribute, so it usually
+     * has to create the params itself.
+     */
     private function resolveRemoteAddress(ServerRequestInterface $request): string
     {
         $normalizedParams = $request->getAttribute('normalizedParams');
-        if ($normalizedParams instanceof NormalizedParams) {
-            return $normalizedParams->getRemoteAddress();
+        if (!$normalizedParams instanceof NormalizedParams) {
+            $normalizedParams = NormalizedParams::createFromRequest($request, $GLOBALS['TYPO3_CONF_VARS']['SYS'] ?? []);
         }
 
-        // This middleware runs before the normalizedParams attribute is set;
-        // getIndpEnv() respects the reverse proxy configuration as well
-        return (string)GeneralUtility::getIndpEnv('REMOTE_ADDR');
+        return $normalizedParams->getRemoteAddress();
     }
 }

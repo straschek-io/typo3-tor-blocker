@@ -4,17 +4,18 @@ declare(strict_types=1);
 namespace StraschekIo\TorBlocker\Command;
 
 use StraschekIo\TorBlocker\Configuration\ExtensionSettings;
+use StraschekIo\TorBlocker\Download\DownloadFailedException;
+use StraschekIo\TorBlocker\Download\ExitNodeListDownloader;
 use StraschekIo\TorBlocker\Parser\ExitNodeListParser;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use TYPO3\CMS\Core\Http\RequestFactory;
 
 class UpdateCommand extends Command
 {
-    private const REQUEST_TIMEOUT = 30;
+    private ExitNodeListDownloader $exitNodeListDownloader;
 
     private ExitNodeListParser $exitNodeListParser;
 
@@ -22,15 +23,13 @@ class UpdateCommand extends Command
 
     private ExtensionSettings $extensionSettings;
 
-    private RequestFactory $requestFactory;
-
     public function __construct(
-        RequestFactory $requestFactory,
+        ExitNodeListDownloader $exitNodeListDownloader,
         ExitNodeListParser $exitNodeListParser,
         ExitNodeRepository $exitNodeRepository,
         ExtensionSettings $extensionSettings
     ) {
-        $this->requestFactory = $requestFactory;
+        $this->exitNodeListDownloader = $exitNodeListDownloader;
         $this->exitNodeListParser = $exitNodeListParser;
         $this->exitNodeRepository = $exitNodeRepository;
         $this->extensionSettings = $extensionSettings;
@@ -45,23 +44,16 @@ class UpdateCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $listUrl = $this->extensionSettings->getListUrl();
 
         try {
-            $response = $this->requestFactory->request($listUrl, 'GET', ['timeout' => self::REQUEST_TIMEOUT]);
-        } catch (\Throwable $exception) {
-            $io->error(sprintf('Could not download %s: %s. Keeping the current list.', $listUrl, $exception->getMessage()));
+            $list = $this->exitNodeListDownloader->download($this->extensionSettings->getListUrl());
+        } catch (DownloadFailedException $exception) {
+            $io->error($exception->getMessage() . ' Keeping the current list.');
 
             return 1;
         }
 
-        if ($response->getStatusCode() !== 200) {
-            $io->error(sprintf('%s answered with status %d. Keeping the current list.', $listUrl, $response->getStatusCode()));
-
-            return 1;
-        }
-
-        $addresses = $this->exitNodeListParser->parse((string)$response->getBody());
+        $addresses = $this->exitNodeListParser->parse($list);
         $minimumEntries = $this->extensionSettings->getMinimumEntries();
         if (count($addresses) < $minimumEntries) {
             $io->error(sprintf(

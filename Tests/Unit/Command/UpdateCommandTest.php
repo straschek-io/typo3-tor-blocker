@@ -6,12 +6,12 @@ namespace StraschekIo\TorBlocker\Tests\Unit\Command;
 use PHPUnit\Framework\TestCase;
 use StraschekIo\TorBlocker\Command\UpdateCommand;
 use StraschekIo\TorBlocker\Configuration\ExtensionSettings;
+use StraschekIo\TorBlocker\Download\DownloadFailedException;
+use StraschekIo\TorBlocker\Download\ExitNodeListDownloader;
 use StraschekIo\TorBlocker\Network\IpAddressNormalizer;
 use StraschekIo\TorBlocker\Parser\ExitNodeListParser;
 use StraschekIo\TorBlocker\Repository\ExitNodeRepository;
 use Symfony\Component\Console\Tester\CommandTester;
-use TYPO3\CMS\Core\Http\RequestFactory;
-use TYPO3\CMS\Core\Http\Response;
 
 /**
  * @covers \StraschekIo\TorBlocker\Command\UpdateCommand
@@ -39,7 +39,7 @@ final class UpdateCommandTest extends TestCase
 
     public function testStoresTheDownloadedList(): void
     {
-        $commandTester = $this->createCommandTester($this->createRequestFactory("192.0.2.1\n198.51.100.23\n"));
+        $commandTester = $this->createCommandTester($this->createDownloader("192.0.2.1\n198.51.100.23\n"));
 
         $exitCode = $commandTester->execute([]);
 
@@ -50,10 +50,18 @@ final class UpdateCommandTest extends TestCase
         self::assertStringContainsString('Stored 2 Tor exit node addresses', $commandTester->getDisplay());
     }
 
+    public function testDownloadsTheConfiguredUrl(): void
+    {
+        $downloader = $this->createMock(ExitNodeListDownloader::class);
+        $downloader->expects(self::once())->method('download')->with('https://example.org/exit-nodes')->willReturn("192.0.2.1\n198.51.100.23\n");
+
+        self::assertSame(0, $this->createCommandTester($downloader)->execute([]));
+    }
+
     public function testKeepsTheCurrentListWhenTooFewAddressesArrive(): void
     {
         (new ExitNodeRepository($this->storageDirectory))->replace(['203.0.113.7']);
-        $commandTester = $this->createCommandTester($this->createRequestFactory("192.0.2.1\n"));
+        $commandTester = $this->createCommandTester($this->createDownloader("192.0.2.1\n"));
 
         $exitCode = $commandTester->execute([]);
 
@@ -66,24 +74,14 @@ final class UpdateCommandTest extends TestCase
     public function testKeepsTheCurrentListWhenTheDownloadFails(): void
     {
         (new ExitNodeRepository($this->storageDirectory))->replace(['203.0.113.7']);
-        $requestFactory = $this->createMock(RequestFactory::class);
-        $requestFactory->method('request')->willThrowException(new \RuntimeException('Connection refused'));
-        $commandTester = $this->createCommandTester($requestFactory);
+        $downloader = $this->createMock(ExitNodeListDownloader::class);
+        $downloader->method('download')->willThrowException(new DownloadFailedException('Connection refused.', 1789113610));
+        $commandTester = $this->createCommandTester($downloader);
 
         $exitCode = $commandTester->execute([]);
 
         self::assertSame(1, $exitCode);
-        self::assertTrue((new ExitNodeRepository($this->storageDirectory))->contains('203.0.113.7'));
-    }
-
-    public function testKeepsTheCurrentListOnAnErrorStatus(): void
-    {
-        (new ExitNodeRepository($this->storageDirectory))->replace(['203.0.113.7']);
-        $commandTester = $this->createCommandTester($this->createRequestFactory("192.0.2.1\n198.51.100.23\n", 503));
-
-        $exitCode = $commandTester->execute([]);
-
-        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('Connection refused. Keeping the current list.', $commandTester->getDisplay());
         self::assertTrue((new ExitNodeRepository($this->storageDirectory))->contains('203.0.113.7'));
     }
 
@@ -91,7 +89,7 @@ final class UpdateCommandTest extends TestCase
     {
         // A file in the way of the storage directory
         file_put_contents($this->storageDirectory, '');
-        $commandTester = $this->createCommandTester($this->createRequestFactory("192.0.2.1\n198.51.100.23\n"));
+        $commandTester = $this->createCommandTester($this->createDownloader("192.0.2.1\n198.51.100.23\n"));
 
         $exitCode = $commandTester->execute([]);
 
@@ -99,30 +97,23 @@ final class UpdateCommandTest extends TestCase
         self::assertStringContainsString('Could not store the list', $commandTester->getDisplay());
     }
 
-    private function createCommandTester(RequestFactory $requestFactory): CommandTester
+    private function createCommandTester(ExitNodeListDownloader $downloader): CommandTester
     {
-        $extensionSettings = $this->createMock(ExtensionSettings::class);
-        $extensionSettings->method('getListUrl')->willReturn('https://example.org/exit-nodes');
-        $extensionSettings->method('getMinimumEntries')->willReturn(2);
-
         $command = new UpdateCommand(
-            $requestFactory,
+            $downloader,
             new ExitNodeListParser(new IpAddressNormalizer()),
             new ExitNodeRepository($this->storageDirectory),
-            $extensionSettings
+            new ExtensionSettings(['listUrl' => 'https://example.org/exit-nodes', 'minimumEntries' => '2'])
         );
 
         return new CommandTester($command);
     }
 
-    private function createRequestFactory(string $body, int $statusCode = 200): RequestFactory
+    private function createDownloader(string $list): ExitNodeListDownloader
     {
-        $response = (new Response())->withStatus($statusCode);
-        $response->getBody()->write($body);
+        $downloader = $this->createMock(ExitNodeListDownloader::class);
+        $downloader->method('download')->willReturn($list);
 
-        $requestFactory = $this->createMock(RequestFactory::class);
-        $requestFactory->method('request')->willReturn($response);
-
-        return $requestFactory;
+        return $downloader;
     }
 }

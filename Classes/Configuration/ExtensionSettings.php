@@ -3,9 +3,11 @@
 declare(strict_types=1);
 namespace StraschekIo\TorBlocker\Configuration;
 
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
-use TYPO3\CMS\Core\Exception;
-
+/**
+ * Extension configuration with defaults, read from $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']
+ * as ExtensionConfiguration::get() does. Reading the array directly keeps the class free of
+ * core services, which are read-only classes from TYPO3 14 on and cannot be replaced in tests.
+ */
 class ExtensionSettings
 {
     public const EXTENSION_KEY = 'tor_blocker';
@@ -18,14 +20,13 @@ class ExtensionSettings
 
     private array $settings;
 
-    public function __construct(ExtensionConfiguration $extensionConfiguration)
+    /**
+     * @param array<string, mixed>|null $settings Defaults to the extension configuration; not configured yet
+     *                                            (e.g. activated without running the extension setup) means defaults
+     */
+    public function __construct(?array $settings = null)
     {
-        try {
-            $settings = $extensionConfiguration->get(self::EXTENSION_KEY);
-        } catch (Exception $exception) {
-            // Not configured yet, e.g. activated without running the extension setup
-            $settings = [];
-        }
+        $settings = $settings ?? ($GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS'][self::EXTENSION_KEY] ?? []);
         $this->settings = is_array($settings) ? $settings : [];
     }
 

@@ -5,17 +5,31 @@ namespace StraschekIo\TorBlocker\Tests\Unit\Configuration;
 
 use PHPUnit\Framework\TestCase;
 use StraschekIo\TorBlocker\Configuration\ExtensionSettings;
-use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
-use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 
 /**
  * @covers \StraschekIo\TorBlocker\Configuration\ExtensionSettings
  */
 final class ExtensionSettingsTest extends TestCase
 {
+    /**
+     * @var mixed
+     */
+    private $typo3ConfVarsBackup;
+
+    protected function setUp(): void
+    {
+        $this->typo3ConfVarsBackup = $GLOBALS['TYPO3_CONF_VARS'] ?? null;
+        unset($GLOBALS['TYPO3_CONF_VARS']);
+    }
+
+    protected function tearDown(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS'] = $this->typo3ConfVarsBackup;
+    }
+
     public function testUsesTheDefaultsWithoutConfiguration(): void
     {
-        $settings = $this->createSettings([]);
+        $settings = new ExtensionSettings([]);
 
         self::assertSame('https://check.torproject.org/torbulkexitlist', $settings->getListUrl());
         self::assertSame(500, $settings->getMinimumEntries());
@@ -24,20 +38,22 @@ final class ExtensionSettingsTest extends TestCase
 
     public function testUsesTheDefaultsWhenTheExtensionIsNotConfiguredYet(): void
     {
-        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
-        $extensionConfiguration->method('get')->willThrowException(
-            new ExtensionConfigurationExtensionNotConfiguredException('not configured', 1789113700)
-        );
-
-        $settings = new ExtensionSettings($extensionConfiguration);
+        $settings = new ExtensionSettings();
 
         self::assertSame(500, $settings->getMinimumEntries());
         self::assertSame('https://check.torproject.org/torbulkexitlist', $settings->getListUrl());
     }
 
+    public function testReadsTheExtensionConfiguration(): void
+    {
+        $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['tor_blocker'] = ['minimumEntries' => '42'];
+
+        self::assertSame(42, (new ExtensionSettings())->getMinimumEntries());
+    }
+
     public function testReturnsTheConfiguredValuesTrimmed(): void
     {
-        $settings = $this->createSettings([
+        $settings = new ExtensionSettings([
             'listUrl' => ' https://example.org/exit-nodes ',
             'minimumEntries' => '25',
             'templatePath' => ' EXT:site/Resources/Private/Templates/Blocked.html ',
@@ -54,7 +70,7 @@ final class ExtensionSettingsTest extends TestCase
      */
     public function testFallsBackToTheDefaultMinimumForInvalidValues($minimumEntries): void
     {
-        self::assertSame(500, $this->createSettings(['minimumEntries' => $minimumEntries])->getMinimumEntries());
+        self::assertSame(500, (new ExtensionSettings(['minimumEntries' => $minimumEntries]))->getMinimumEntries());
     }
 
     /**
@@ -72,20 +88,9 @@ final class ExtensionSettingsTest extends TestCase
 
     public function testFallsBackToTheDefaultsForEmptyStrings(): void
     {
-        $settings = $this->createSettings(['listUrl' => '   ', 'templatePath' => '']);
+        $settings = new ExtensionSettings(['listUrl' => '   ', 'templatePath' => '']);
 
         self::assertSame('https://check.torproject.org/torbulkexitlist', $settings->getListUrl());
         self::assertSame('EXT:tor_blocker/Resources/Private/Templates/Blocked.html', $settings->getTemplatePath());
-    }
-
-    /**
-     * @param mixed $configuration
-     */
-    private function createSettings($configuration): ExtensionSettings
-    {
-        $extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
-        $extensionConfiguration->method('get')->with('tor_blocker')->willReturn($configuration);
-
-        return new ExtensionSettings($extensionConfiguration);
     }
 }
