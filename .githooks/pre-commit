@@ -1,18 +1,23 @@
 #!/bin/sh
 # Reject commits with code style violations in staged PHP files.
 # Activate once per clone: git config core.hooksPath .githooks
+# Uses the DDEV instance when it runs, otherwise Docker with PHP 7.4, the lowest supported version.
 
 staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(Classes|Tests)/.*\.php$')
 [ -z "$staged" ] && exit 0
 
-if ! command -v ddev >/dev/null 2>&1 || ! ddev describe >/dev/null 2>&1; then
-    echo "pre-commit: ddev not running, skipping php-cs-fixer check (CI will catch violations)"
+if command -v ddev >/dev/null 2>&1 && ddev exec true >/dev/null 2>&1; then
+    runner="ddev exec"
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && [ -f vendor/bin/php-cs-fixer ]; then
+    runner="docker run --rm -v $PWD:/app -w /app php:7.4-cli"
+else
+    echo "pre-commit: neither ddev nor docker with vendor/ available, skipping php-cs-fixer check (CI will catch violations)"
     exit 0
 fi
 
 # shellcheck disable=SC2086
-if ! ddev exec vendor/bin/php-cs-fixer fix --dry-run --diff --using-cache=no $staged; then
+if ! $runner vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff --using-cache=no $staged; then
     echo ""
-    echo "pre-commit: code style violations found. Run 'ddev composer cs:fix' and re-stage."
+    echo "pre-commit: code style violations found. Run 'ddev composer cs:fix' (or 'composer cs:fix') and re-stage."
     exit 1
 fi
