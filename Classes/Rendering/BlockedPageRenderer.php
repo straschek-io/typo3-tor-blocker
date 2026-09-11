@@ -4,8 +4,9 @@ declare(strict_types=1);
 namespace StraschekIo\TorBlocker\Rendering;
 
 use StraschekIo\TorBlocker\Configuration\ExtensionSettings;
-use TYPO3\CMS\Core\Localization\LocalizationFactory;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use TYPO3\CMS\Core\View\ViewFactoryData;
+use TYPO3\CMS\Core\View\ViewFactoryInterface;
 use TYPO3\CMS\Fluid\View\StandaloneView;
 
 /**
@@ -14,46 +15,48 @@ use TYPO3\CMS\Fluid\View\StandaloneView;
  */
 class BlockedPageRenderer
 {
-    private const LANGUAGE_FILE = 'EXT:tor_blocker/Resources/Private/Language/locallang.xlf';
-
-    private const LABEL_KEYS = ['title', 'message'];
+    private BlockedPageLabels $blockedPageLabels;
 
     private ExtensionSettings $extensionSettings;
 
-    private LocalizationFactory $localizationFactory;
+    /**
+     * Only available from TYPO3 13 on, where StandaloneView is deprecated. The container
+     * leaves the argument at null in TYPO3 10 and 12, where the interface does not exist.
+     *
+     * @var ViewFactoryInterface|null
+     */
+    private $viewFactory;
 
-    public function __construct(ExtensionSettings $extensionSettings, LocalizationFactory $localizationFactory)
-    {
+    public function __construct(
+        ExtensionSettings $extensionSettings,
+        BlockedPageLabels $blockedPageLabels,
+        ?ViewFactoryInterface $viewFactory = null
+    ) {
         $this->extensionSettings = $extensionSettings;
-        $this->localizationFactory = $localizationFactory;
+        $this->blockedPageLabels = $blockedPageLabels;
+        $this->viewFactory = $viewFactory;
     }
 
     public function render(string $languageKey): string
     {
-        $view = GeneralUtility::makeInstance(StandaloneView::class);
-        $view->setTemplatePathAndFilename(GeneralUtility::getFileAbsFileName($this->extensionSettings->getTemplatePath()));
-        $view->assignMultiple([
+        $templatePathAndFilename = GeneralUtility::getFileAbsFileName($this->extensionSettings->getTemplatePath());
+        $variables = [
             'htmlLanguage' => $languageKey === 'default' ? 'en' : $languageKey,
-            'labels' => $this->getLabels($languageKey),
-        ]);
+            'labels' => $this->blockedPageLabels->get($languageKey),
+        ];
 
-        return (string)$view->render();
-    }
+        if ($this->viewFactory !== null) {
+            $view = $this->viewFactory->create(new ViewFactoryData(null, null, null, $templatePathAndFilename));
+            $view->assignMultiple($variables);
 
-    /**
-     * @return array<string, string>
-     */
-    private function getLabels(string $languageKey): array
-    {
-        $parsedData = $this->localizationFactory->getParsedData(self::LANGUAGE_FILE, $languageKey);
-
-        $labels = [];
-        foreach (self::LABEL_KEYS as $labelKey) {
-            $labels[$labelKey] = (string)($parsedData[$languageKey][$labelKey][0]['target']
-                ?? $parsedData['default'][$labelKey][0]['target']
-                ?? '');
+            return $view->render();
         }
 
-        return $labels;
+        // TYPO3 10 and 12
+        $view = GeneralUtility::makeInstance(StandaloneView::class);
+        $view->setTemplatePathAndFilename($templatePathAndFilename);
+        $view->assignMultiple($variables);
+
+        return (string)$view->render();
     }
 }
