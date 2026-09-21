@@ -31,10 +31,22 @@ the extension manager and dump the autoload information.
    vendor/bin/typo3 torblocker:update
    ```
 
-2. Keep it up to date: add a scheduler task "Execute console commands" with
-   `torblocker:update`, running hourly.
+2. Keep it up to date, hourly. Either add a scheduler task "Execute console
+   commands" with `torblocker:update`, or skip the scheduler and use a cron job
+   running as the web server user:
 
-3. Check that it works: request the site from a listed address (Tor Browser, or
+   ```
+   7 * * * * www-data /path/to/project/vendor/bin/typo3 torblocker:update
+   ```
+
+   In classic mode the binary is `typo3/sysext/core/bin/typo3`.
+
+3. Keep an eye on it: the reports module (system extension `reports`) shows the
+   number of stored addresses and the age of the list under "Tor Blocker". It
+   warns when no list is stored or the list is older than 24 hours, and reports
+   an error when the stored list cannot be loaded.
+
+4. Check that it works: request the site from a listed address (Tor Browser, or
    `curl` from a listed exit node) and expect a `403` with `Cache-Control: no-store`.
 
 That's it. The middleware runs first in the frontend stack, before static file

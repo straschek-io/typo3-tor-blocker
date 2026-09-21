@@ -36,6 +36,7 @@
     "typo3/cms-fluid-styled-content": "^10.4 || ^12.4 || ^13.4 || ^14.3",
     "typo3/cms-frontend": "^10.4 || ^12.4 || ^13.4 || ^14.3",
     "typo3/cms-install": "^10.4 || ^12.4 || ^13.4 || ^14.3",
+    "typo3/cms-reports": "^10.4 || ^12.4 || ^13.4 || ^14.3",
     "typo3/cms-scheduler": "^10.4 || ^12.4 || ^13.4 || ^14.3"
   },
   "scripts": {

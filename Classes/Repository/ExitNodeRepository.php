@@ -53,6 +53,17 @@ class ExitNodeRepository implements LoggerAwareInterface
     }
 
     /**
+     * Timestamp of the last successful update, null without a stored list.
+     */
+    public function getLastModified(): ?int
+    {
+        clearstatcache(true, $this->getFilePath());
+        $lastModified = is_file($this->getFilePath()) ? filemtime($this->getFilePath()) : false;
+
+        return $lastModified === false ? null : $lastModified;
+    }
+
+    /**
      * @param string[] $addresses
      */
     public function replace(array $addresses): void
