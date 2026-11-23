@@ -11,9 +11,12 @@ services:
   StraschekIo\TorBlocker\Middleware\TorBlockerMiddleware:
     public: true
 
+  StraschekIo\TorBlocker\Middleware\BackendTorBlockerMiddleware:
+    public: true
+
   StraschekIo\TorBlocker\Command\UpdateCommand:
     tags:
       - name: 'console.command'
         command: 'torblocker:update'
-        description: 'Downloads the Tor exit node list used to block frontend requests'
+        description: 'Downloads the Tor exit node list used to block frontend and backend requests'
         schedulable: true

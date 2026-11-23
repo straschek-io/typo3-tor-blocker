@@ -1,6 +1,6 @@
 {
   "name": "straschek-io/typo3-tor-blocker",
-  "description": "Blocks TYPO3 frontend requests from Tor exit nodes",
+  "description": "Blocks TYPO3 frontend and backend requests from Tor exit nodes",
   "license": "GPL-2.0-or-later",
   "support": {
     "email": "hallo@straschek.io",

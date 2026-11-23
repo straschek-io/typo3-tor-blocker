@@ -93,4 +93,32 @@ final class ExtensionSettingsTest extends TestCase
         self::assertSame('https://check.torproject.org/torbulkexitlist', $settings->getListUrl());
         self::assertSame('EXT:tor_blocker/Resources/Private/Templates/Blocked.html', $settings->getTemplatePath());
     }
+
+    public function testBlocksTheBackendByDefault(): void
+    {
+        self::assertTrue((new ExtensionSettings([]))->isBackendBlocked());
+        self::assertTrue((new ExtensionSettings())->isBackendBlocked());
+    }
+
+    /**
+     * @dataProvider blockBackendProvider
+     * @param mixed $value
+     */
+    public function testReadsTheBackendSwitch($value, bool $expected): void
+    {
+        self::assertSame($expected, (new ExtensionSettings(['blockBackend' => $value]))->isBackendBlocked());
+    }
+
+    /**
+     * @return array<string, array{mixed, bool}>
+     */
+    public function blockBackendProvider(): array
+    {
+        return [
+            'switched on' => ['1', true],
+            'switched off' => ['0', false],
+            'switched off as integer' => [0, false],
+            'switched off as boolean' => [false, false],
+        ];
+    }
 }

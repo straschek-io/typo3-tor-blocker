@@ -6,3 +6,6 @@ minimumEntries = 500
 
 # cat=basic;type=string;label=Fluid template of the page shown to blocked visitors
 templatePath = EXT:tor_blocker/Resources/Private/Templates/Blocked.html
+
+# cat=basic;type=boolean;label=Block backend requests (login and password reset included) from Tor exit nodes
+blockBackend = 1

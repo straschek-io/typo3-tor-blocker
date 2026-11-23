@@ -38,7 +38,7 @@ class UpdateCommand extends Command
 
     protected function configure(): void
     {
-        $this->setDescription('Downloads the Tor exit node list used to block frontend requests');
+        $this->setDescription('Downloads the Tor exit node list used to block frontend and backend requests');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

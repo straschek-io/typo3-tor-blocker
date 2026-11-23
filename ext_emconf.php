@@ -2,7 +2,7 @@
 
 $EM_CONF['tor_blocker'] = [
     'title' => 'Tor Blocker',
-    'description' => 'Blocks frontend requests from Tor exit nodes',
+    'description' => 'Blocks frontend and backend requests from Tor exit nodes',
     'category' => 'fe',
     'author' => 'Michael Straschek',
     'author_email' => 'hallo@straschek.io',
