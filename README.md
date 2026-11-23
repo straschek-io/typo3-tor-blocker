@@ -1,14 +1,17 @@
 TYPO3 Tor Blocker
 ======================================
 
-This extension answers every frontend request coming from a Tor exit node with
-`403 Forbidden` and a short notice page.
+This extension answers every frontend and backend request coming from a Tor exit
+node with `403 Forbidden` and a short notice page.
 
 Form spam bots like to hide behind the Tor network: every submission arrives from
 a different exit node, so blocking single IP addresses is pointless. The Tor
 Project publishes the complete list of exit nodes, which makes blocking all of
 them straightforward. Legitimate visitors via Tor are rare on most websites;
 if they matter for yours, this extension is not for you.
+
+The same goes for the backend: distributed login attempts spread over a thousand
+exit nodes stay below TYPO3's login rate limit, which counts per address.
 
 ## How to install
 
@@ -50,7 +53,10 @@ the extension manager and dump the autoload information.
    `curl` from a listed exit node) and expect a `403` with `Cache-Control: no-store`.
 
 That's it. The middleware runs first in the frontend stack, before static file
-caches and before the page is resolved. The backend is never blocked.
+caches and before the page is resolved. In the backend it runs before the login,
+so the login form, the password reset and every module are blocked; switch that
+off with `blockBackend = 0`. The install tool (`/typo3/install.php`) has its own
+request handling and is not covered.
 
 ## Configuration
 
@@ -60,6 +66,7 @@ Extension configuration, all optional:
 |---|---|---|
 | `listUrl` | `https://check.torproject.org/torbulkexitlist` | Plain text, one IP address per line |
 | `minimumEntries` | `500` | A download with fewer valid addresses is rejected and the stored list is kept |
+| `blockBackend` | `1` | Block backend requests too, login and password reset included |
 | `templatePath` | `EXT:tor_blocker/Resources/Private/Templates/Blocked.html` | Fluid template of the notice page, gets `{htmlLanguage}` and `{labels.title}`, `{labels.message}` |
 
 The notice page is available in English and German, chosen by the browser's

@@ -42,6 +42,11 @@ class ExtensionSettings
         return $minimumEntries > 0 ? $minimumEntries : self::DEFAULTS['minimumEntries'];
     }
 
+    public function isBackendBlocked(): bool
+    {
+        return (bool)($this->settings['blockBackend'] ?? true);
+    }
+
     public function getTemplatePath(): string
     {
         return $this->getString('templatePath');
